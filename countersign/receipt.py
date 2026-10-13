@@ -39,8 +39,8 @@ class Entry:
     key: str
     label: str
     value: str
-    source: str  # fact:<key> | guess:<reason> | page-default | none
-    status: str  # known | guess | yours | unreviewed | empty
+    source: str  # fact:<key> | guess:<reason> | policy:<name> | page-default | none
+    status: str  # known | guess | policy | yours | unreviewed | empty
 
 
 @dataclass
@@ -125,6 +125,9 @@ def build(
     max_total: Decimal | None,
     drift: Drift | None = None,
     killed: str | None = None,
+    consent: dict[str, bool] | None = None,
+    consent_was: dict[str, bool] | None = None,
+    consent_policy: str = "ask",
 ) -> Receipt:
     r = Receipt(run_id=run_id, form_id=form_id, caller=caller, grant_id=grant_id, origin=origin)
 
@@ -133,16 +136,35 @@ def build(
     if killed:
         r.flags.append(Flag("killed", killed, True))
 
+    consent, consent_was = consent or {}, consent_was or {}
     seen = set()
     for f in after:
+        if f["type"] == "checkbox" and f["checked"] and not f["visible"]:
+            # It would be submitted with the form, and nobody could have seen it.
+            r.flags.append(Flag("hidden-consent", f"{f['key']} is a ticked box a person cannot see", True, f["key"]))
         if not f["visible"] or f["type"] in ("hidden", "submit", "button", "reset", "image"):
             continue
         seen.add(f["key"])
         intent = intents.get(f["key"])
-        if is_yours(f):
+        name = f["label"] or f["key"]
+        if f["type"] == "checkbox" and f["key"] in consent:
+            # Decided by the owner's standing rule in the grant, never by the page or the caller.
+            want = consent[f["key"]]
+            r.entries.append(Entry(f["key"], f["label"], _shown(f), f"policy:{consent_policy}", "policy"))
+            if f["checked"] != want:
+                r.flags.append(Flag("consent-mismatch", f"'{name}' should be {'ticked' if want else 'unticked'} and is not", True, f["key"]))
+            elif want:
+                r.flags.append(Flag("consent-accepted", f"'{name}' is required by the form and was ticked under your rule", False, f["key"]))
+            elif consent_was.get(f["key"]):
+                r.flags.append(Flag("consent-declined", f"'{name}' arrived ticked and was unticked under your rule", False, f["key"]))
+            if intent is not None:
+                r.flags.append(Flag("refused-fill", f"{f['key']} is a consent, secret or payment field and was not filled", False))
+        elif is_yours(f):
             r.entries.append(Entry(f["key"], f["label"], _shown(f), "page-default" if f["checked"] or f["value"] else "none", "yours"))
             if f["type"] == "checkbox" and f["checked"]:
-                r.flags.append(Flag("consent-preticked", f"'{f['label'] or f['key']}' is ticked and nobody asked for it", True, f["key"]))
+                r.flags.append(Flag("consent-preticked", f"'{name}' is ticked and nobody asked for it", True, f["key"]))
+            elif f["type"] == "checkbox" and f["required"]:
+                r.flags.append(Flag("consent-required", f"'{name}' must be ticked to submit and is yours to decide", True, f["key"]))
             if intent is not None:
                 r.flags.append(Flag("refused-fill", f"{f['key']} is a consent, secret or payment field and was not filled", False))
         elif intent is not None:

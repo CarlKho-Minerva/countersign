@@ -82,3 +82,11 @@ def test_total_over_limit():
     assert g.total_ok(Decimal("0.00"))
     assert not g.total_ok(Decimal("1278.00"))
     assert _grant(max_total=None).total_ok(Decimal("9999"))
+
+
+def test_consent_rule_round_trips_and_defaults_to_ask():
+    priv, pub = new_keypair()
+    assert verify(pub, issue(priv, _grant()), now=NOW).consent == "ask"
+    assert verify(pub, issue(priv, _grant(consent="required-only")), now=NOW).consent == "required-only"
+    with pytest.raises(GrantError, match="unknown consent policy"):
+        verify(pub, issue(priv, _grant(consent="tick-everything")), now=NOW)

@@ -20,8 +20,8 @@ to do. And each run pays for a vision model to rediscover a form it has filled b
    not changed.
 3. **Every call carries a grant.** A signed, expiring token from the owner that says
    who the caller is, which form and which origins it may touch, which facts it may
-   disclose, and the largest total it may accept. Anything outside the grant is
-   refused before a container starts.
+   disclose, the largest total it may accept, and how consent boxes are decided.
+   Anything outside the grant is refused before a container starts.
 4. **Every call runs in a fresh sandbox.** One container per run on the Vultr VM: no
    secrets inside, CPU, memory and time caps, a network that can reach only the
    form's own origin through a logging proxy, destroyed when the run ends.
@@ -30,10 +30,15 @@ to do. And each run pays for a vision model to rediscover a form it has filled b
    that are ticked without an instruction, a total that differs from the expected
    one, page text that tries to instruct the agent, and every network request the
    sandbox blocked.
-6. **Drift check.** Before a replay, the live form's fingerprint is compared with the
+6. **Consent boxes are decided by your rule, once.** The grant carries a standing
+   rule: tick what the form requires, untick everything else. The receipt shows each
+   box, what the rule did, and which boxes arrived ticked. You are not asked box by
+   box. A grant can instead leave every box to you. A ticked box that nobody can see
+   blocks approval under either setting.
+7. **Drift check.** Before a replay, the live form's fingerprint is compared with the
    compiled one. If the page changed shape, the replay is refused, the difference is
    shown, and the form is learned again.
-7. **You countersign.** Approve the receipt and a second fresh sandbox replays the
+8. **You countersign.** Approve the receipt and a second fresh sandbox replays the
    same fill and submits. Reject it and nothing left the sandbox.
 
 ## The containment moment (for the video)
@@ -90,5 +95,10 @@ which parts predate it.
 ## Not in scope
 
 Login-walled forms, CAPTCHAs, payments, and anything that needs a stored credential.
-Consent boxes, passwords and payment fields are never filled; the receipt lists them
-as yours.
+Passwords and payment fields are never filled; the receipt lists them as yours. A
+caller can never set a consent box: only the owner's rule or the owner's approval can.
+
+Known limit of the consent rule before kickoff: it trusts the form's own "required"
+mark. A form could mark a data-sharing box as required, and the rule would tick it;
+the receipt names every box it ticked so that is visible. From kickoff the model reads
+the label and flags a required box that is not plainly terms.

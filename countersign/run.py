@@ -55,8 +55,9 @@ class Compiled:
 
 @dataclass(frozen=True)
 class Approval:
-    """The owner's countersignature: the receipt they read, and their decision for
-    each consent box on it. Consent comes from here and from nowhere else."""
+    """The owner's countersignature: the receipt they read, and their decision for any
+    consent box their grant left to them. Consent comes from the owner, here or as the
+    standing rule in the grant, and from nowhere else."""
 
     digest: str
     consent: dict[str, bool] = field(default_factory=dict)
@@ -107,30 +108,39 @@ def _admit(compiled, facts, grant_token, issuer, intents, now, *, submit) -> tup
     return grant, intents
 
 
-def _fill_page(box: Sandbox, compiled: Compiled, intents: dict[str, rc.Intent]) -> dict:
+def _fill_page(box: Sandbox, compiled: Compiled, intents: dict[str, rc.Intent], consent_policy: str = "ask") -> dict:
     box.call("open", url=compiled.url)
     page = box.call("read_form")
     page["drift"] = drift(compiled.fields, page["fields"])
+    page["consent"], page["consent_was"] = {}, {}
     if page["drift"]:
         return page  # a form that changed shape is reported, not filled
+    was, want = {}, {}
+    if consent_policy == "required-only":
+        for f in page["fields"]:
+            if f["type"] == "checkbox" and f["visible"]:
+                was[f["key"]], want[f["key"]] = f["checked"], bool(f["required"])
+                if f["checked"] != f["required"]:
+                    box.call("set_consent", key=f["key"], checked=bool(f["required"]))
     for key, intent in intents.items():
         try:
             box.call("fill", key=key, value=intent.value)
         except Refused:
             pass  # the receipt reports it: the read-back will not match, or the field is "yours"
     after = box.call("read_form")
-    after["drift"] = page["drift"]
+    after["drift"], after["consent"], after["consent_was"] = page["drift"], want, was
     return after
 
 
 def _receipt(box: Sandbox, compiled: Compiled, grant: Grant, intents, page: dict | None, killed: str | None = None) -> rc.Receipt:
     """Built from the proxy log as it stands: complete after a run, so far during one."""
-    page = page or {"fields": [], "hidden_text": [], "total_text": None, "drift": None}
+    page = page or {"fields": [], "hidden_text": [], "total_text": None, "drift": None, "consent": {}, "consent_was": {}}
     return rc.build(
         run_id=box.run_id, form_id=compiled.form_id, caller=grant.caller, grant_id=grant.grant_id,
         origin=compiled.origin, after=page["fields"], intents={} if page["drift"] else intents,
         blocked=box.blocked(), hidden_text=page["hidden_text"], total_text=page["total_text"],
         max_total=grant.max_total, drift=page["drift"] or None, killed=killed,
+        consent=page["consent"], consent_was=page["consent_was"], consent_policy=grant.consent,
     )
 
 
@@ -141,7 +151,7 @@ def fill(compiled: Compiled, facts: dict[str, str], grant_token: str, issuer: Ed
     page, shot, killed = None, None, None
     try:
         with box:
-            page = _fill_page(box, compiled, intents)
+            page = _fill_page(box, compiled, intents, grant.consent)
             shot = base64.b64decode(box.call("screenshot")["png_b64"])
     except SandboxKilled as exc:
         killed = str(exc)
@@ -161,12 +171,13 @@ def submit(compiled: Compiled, facts: dict[str, str], grant_token: str, issuer: 
 
     box = sandbox(EgressPolicy(allow_hosts=frozenset(grant.origins)))
     with box:
-        page = _fill_page(box, compiled, intents)
+        page = _fill_page(box, compiled, intents, grant.consent)
         receipt = _receipt(box, compiled, grant, intents, page)
         if receipt.digest() != approval.digest:
             raise NotApproved("this run does not produce the receipt that was approved; read the new one first")
         # The only block an owner can lift is a consent box, by deciding it themselves.
-        open_blocks = [f for f in receipt.flags if f.blocking and not (f.kind == "consent-preticked" and f.key in approval.consent)]
+        liftable = ("consent-preticked", "consent-required")
+        open_blocks = [f for f in receipt.flags if f.blocking and not (f.kind in liftable and f.key in approval.consent)]
         if open_blocks:
             raise NotApproved("; ".join(f"{f.kind}: {f.detail}" for f in open_blocks))
         for key, checked in sorted(approval.consent.items()):

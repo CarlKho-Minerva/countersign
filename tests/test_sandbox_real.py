@@ -97,7 +97,7 @@ def kinds(receipt):
 
 def test_learn_compiles_the_form(compiled):
     keys_ = {f["key"]: f for f in compiled.fields}
-    assert set(keys_) == {"full_name", "email", "job_title", "country", "pass", "newsletter", "share_with_sponsors", "register"}
+    assert set(keys_) == {"full_name", "email", "job_title", "country", "pass", "newsletter", "share_with_sponsors", "terms", "register"}
     assert keys_["country"]["options"] == ["", "US", "PH", "JP"]
     assert keys_["pass"]["type"] == "radio" and keys_["pass"]["options"] == ["all-access", "main-only"]
     assert keys_["register"]["type"] == "submit"
@@ -113,7 +113,7 @@ def test_fill_returns_a_receipt_and_never_submits(site, compiled, keys):
     assert (by["country"].value, by["pass"].value) == ("PH", "all-access")
     assert (by["job_title"].value, by["job_title"].status) == ("Student", "unreviewed")
     assert by["share_with_sponsors"].value == "ticked" and by["newsletter"].value == "not ticked"
-    assert sorted(kinds(r)) == ["consent-preticked", "prefilled"]
+    assert sorted(kinds(r)) == ["consent-preticked", "consent-required", "prefilled"]
     assert r.total == "0.00" and not r.approvable
     assert result.screenshot_png[:8] == b"\x89PNG\r\n\x1a\n"
     assert not [h for h in site.hits("form.test") if h["method"] == "POST"], "the form was submitted"
@@ -262,13 +262,14 @@ def test_countersigned_run_submits_exactly_what_was_approved(site, compiled, key
     seen = run.fill(compiled, FACTS, grant, pub, sandbox=factory()).receipt
     assert not seen.approvable  # the pre-ticked sponsor box
     before = len(posts(site))
-    approval = run.Approval(seen.digest(), consent={"share_with_sponsors": False, "newsletter": False})
+    approval = run.Approval(seen.digest(), consent={"share_with_sponsors": False, "newsletter": False, "terms": True})
     done = run.submit(compiled, FACTS, grant, pub, approval, sandbox=factory())
     sent = posts(site)[before:]
     assert len(sent) == 1 and done.receipt.submitted
     body = sent[0]["body"]
     assert "full_name=Ada+Example" in body and "country=PH" in body and "pass=all-access" in body
     assert "share_with_sponsors" not in body and "newsletter" not in body  # the owner said no to both
+    assert "terms=on" in body
     assert done.landed["url"].endswith("/submit") and done.confirmation_png[:4] == b"\x89PNG"
     assert leftovers() == []
 
@@ -310,3 +311,28 @@ def test_a_page_cannot_choose_the_size_of_the_reply(site):
     import base64, struct
     width, height = struct.unpack(">II", base64.b64decode(shot)[16:24])
     assert width <= 1600 and height <= 6000
+
+
+def test_standing_consent_rule_needs_no_per_box_decision(site, compiled, keys):
+    priv, pub = keys
+    grant = token(priv, may_submit=True, consent="required-only")
+    seen = run.fill(compiled, FACTS, grant, pub, sandbox=factory()).receipt
+    by = {e.key: e for e in seen.entries}
+    assert (by["terms"].value, by["share_with_sponsors"].value, by["newsletter"].value) == ("ticked", "not ticked", "not ticked")
+    assert {by[k].status for k in ("terms", "share_with_sponsors", "newsletter")} == {"policy"}
+    assert sorted(kinds(seen)) == ["consent-accepted", "consent-declined", "prefilled"] and seen.approvable
+    before = len(posts(site))
+    done = run.submit(compiled, FACTS, grant, pub, run.Approval(seen.digest()), sandbox=factory())
+    sent = posts(site)[before:]
+    assert len(sent) == 1 and done.receipt.submitted
+    assert "terms=on" in sent[0]["body"] and "share_with_sponsors" not in sent[0]["body"] and "newsletter" not in sent[0]["body"]
+    assert leftovers() == []
+
+
+def test_hidden_instructions_do_not_move_the_consent_rule(site, keys):
+    priv, pub = keys
+    hostile = run.learn("conf", f"{FORM}/hostile.html", sandbox=factory())
+    r = run.fill(hostile, FACTS, token(priv, consent="required-only"), pub, sandbox=factory()).receipt
+    by = {e.key: e for e in r.entries}
+    assert by["share_with_sponsors"].value == "not ticked" and by["newsletter"].value == "not ticked"
+    assert site.hits("collector.test") == [] and not r.approvable  # the total still blocks

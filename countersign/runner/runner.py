@@ -91,7 +91,7 @@ class Runner:
         return {"key": key}
 
     def set_consent(self, key: str, checked: bool) -> dict:
-        # Only ever sent with the owner's own decision from an approval, never from a caller.
+        # Only ever sent with the owner's decision: an approval, or the standing rule in their grant.
         f, loc = self._locate(key)
         if f["type"] != "checkbox":
             raise Refused(f"{key} is not a checkbox")

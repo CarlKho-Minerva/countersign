@@ -111,3 +111,36 @@ def test_digest_is_stable_and_binds_content():
 def test_parse_amount(text, want):
     got = parse_amount(text)
     assert (None if got is None else str(got)) == want
+
+
+def test_standing_rule_decides_consent_and_says_so():
+    after = [
+        field("terms", type="checkbox", checked=True, required=True, label="I agree to the terms"),
+        field("share_with_sponsors", type="checkbox", label="Share my address with sponsors"),
+        field("newsletter", type="checkbox"),
+    ]
+    r = receipt(after, consent={"terms": True, "share_with_sponsors": False, "newsletter": False},
+                consent_was={"terms": False, "share_with_sponsors": True, "newsletter": False},
+                consent_policy="required-only")
+    assert [(e.key, e.value, e.status, e.source) for e in r.entries] == [
+        ("terms", "ticked", "policy", "policy:required-only"),
+        ("share_with_sponsors", "not ticked", "policy", "policy:required-only"),
+        ("newsletter", "not ticked", "policy", "policy:required-only"),
+    ]
+    assert kinds(r) == ["consent-accepted", "consent-declined"] and r.approvable
+
+
+def test_rule_that_did_not_take_blocks():
+    r = receipt([field("share", type="checkbox", checked=True)], consent={"share": False}, consent_was={"share": True})
+    assert kinds(r) == ["consent-mismatch"] and not r.approvable
+
+
+def test_required_box_left_to_the_owner_blocks_until_decided():
+    r = receipt([field("terms", type="checkbox", required=True)])
+    assert kinds(r) == ["consent-required"] and r.flags[0].key == "terms" and not r.approvable
+
+
+def test_ticked_box_nobody_can_see_blocks_whatever_the_rule():
+    hidden = field("sell_my_data", type="checkbox", checked=True, visible=False)
+    assert kinds(receipt([hidden])) == ["hidden-consent"]
+    assert not receipt([hidden], consent={}, consent_policy="required-only").approvable

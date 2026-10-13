@@ -21,6 +21,9 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 MAX_TOKEN_BYTES = 8192
+# How consent boxes are decided. "ask": the owner decides each one when approving.
+# "required-only": the owner's standing rule, tick what the form requires and untick the rest.
+CONSENT_POLICIES = ("ask", "required-only")
 
 
 class GrantError(Exception):
@@ -37,6 +40,7 @@ class Grant:
     max_total: Decimal | None
     may_submit: bool
     expires_at: int
+    consent: str = "ask"
 
     def total_ok(self, total: Decimal) -> bool:
         return self.max_total is None or total <= self.max_total
@@ -86,9 +90,12 @@ def verify(public_key: Ed25519PublicKey, token: str, now: float | None = None) -
             max_total=None if body["max_total"] is None else Decimal(body["max_total"]),
             may_submit=body["may_submit"] is True,
             expires_at=int(body["expires_at"]),
+            consent=str(body.get("consent", "ask")),
         )
     except (KeyError, TypeError, ValueError, InvalidOperation) as exc:
         raise GrantError("malformed grant body") from exc
+    if grant.consent not in CONSENT_POLICIES:
+        raise GrantError(f"unknown consent policy {grant.consent!r}")
     if (time.time() if now is None else now) >= grant.expires_at:
         raise GrantError(f"grant {grant.grant_id} expired")
     return grant
