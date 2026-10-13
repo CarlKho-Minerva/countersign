@@ -31,10 +31,12 @@ to do. And each run pays for a vision model to rediscover a form it has filled b
    one, page text that tries to instruct the agent, and every network request the
    sandbox blocked.
 6. **Consent boxes are decided by your rule, once.** The grant carries a standing
-   rule: tick what the form requires, untick everything else. The receipt shows each
-   box, what the rule did, and which boxes arrived ticked. You are not asked box by
-   box. A grant can instead leave every box to you. A ticked box that nobody can see
-   blocks approval under either setting.
+   rule that reads what each box says: accept terms, decline marketing and anything
+   optional. A marketing box stays unticked even when the form demands it, and a
+   required statement of fact ("I am authorised to work in...") is never the rule's
+   to make. Both stop the run and are shown to you as yours to decide. The receipt
+   lists every box, what the rule did, and which boxes arrived ticked. A ticked box
+   that nobody can see blocks approval.
 7. **Drift check.** Before a replay, the live form's fingerprint is compared with the
    compiled one. If the page changed shape, the replay is refused, the difference is
    shown, and the form is learned again.
@@ -98,7 +100,7 @@ Login-walled forms, CAPTCHAs, payments, and anything that needs a stored credent
 Passwords and payment fields are never filled; the receipt lists them as yours. A
 caller can never set a consent box: only the owner's rule or the owner's approval can.
 
-Known limit of the consent rule before kickoff: it trusts the form's own "required"
-mark. A form could mark a data-sharing box as required, and the rule would tick it;
-the receipt names every box it ticked so that is visible. From kickoff the model reads
-the label and flags a required box that is not plainly terms.
+Known limit of the consent rule before kickoff: wording is matched with narrow
+patterns (`countersign/consent.py`), so an oddly worded terms box is left unticked
+and, if required, handed to you. From kickoff the model reads the label; the three
+outcomes stay the same.

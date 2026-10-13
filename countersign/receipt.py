@@ -154,9 +154,13 @@ def build(
             if f["checked"] != want:
                 r.flags.append(Flag("consent-mismatch", f"'{name}' should be {'ticked' if want else 'unticked'} and is not", True, f["key"]))
             elif want:
-                r.flags.append(Flag("consent-accepted", f"'{name}' is required by the form and was ticked under your rule", False, f["key"]))
-            elif consent_was.get(f["key"]):
-                r.flags.append(Flag("consent-declined", f"'{name}' arrived ticked and was unticked under your rule", False, f["key"]))
+                r.flags.append(Flag("consent-accepted", f"'{name}' reads as terms and was ticked under your rule", False, f["key"]))
+            else:
+                if consent_was.get(f["key"]):
+                    r.flags.append(Flag("consent-declined", f"'{name}' arrived ticked and was unticked under your rule", False, f["key"]))
+                if f["required"]:
+                    # Declined, and the form will not go through without it. Only the owner can say yes.
+                    r.flags.append(Flag("consent-required", f"the form demands '{name}', which your rule declines; yours to decide", True, f["key"]))
             if intent is not None:
                 r.flags.append(Flag("refused-fill", f"{f['key']} is a consent, secret or payment field and was not filled", False))
         elif is_yours(f):

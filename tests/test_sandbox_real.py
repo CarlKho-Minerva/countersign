@@ -315,7 +315,7 @@ def test_a_page_cannot_choose_the_size_of_the_reply(site):
 
 def test_standing_consent_rule_needs_no_per_box_decision(site, compiled, keys):
     priv, pub = keys
-    grant = token(priv, may_submit=True, consent="required-only")
+    grant = token(priv, may_submit=True, consent="accept-terms")
     seen = run.fill(compiled, FACTS, grant, pub, sandbox=factory()).receipt
     by = {e.key: e for e in seen.entries}
     assert (by["terms"].value, by["share_with_sponsors"].value, by["newsletter"].value) == ("ticked", "not ticked", "not ticked")
@@ -332,7 +332,25 @@ def test_standing_consent_rule_needs_no_per_box_decision(site, compiled, keys):
 def test_hidden_instructions_do_not_move_the_consent_rule(site, keys):
     priv, pub = keys
     hostile = run.learn("conf", f"{FORM}/hostile.html", sandbox=factory())
-    r = run.fill(hostile, FACTS, token(priv, consent="required-only"), pub, sandbox=factory()).receipt
+    r = run.fill(hostile, FACTS, token(priv, consent="accept-terms"), pub, sandbox=factory()).receipt
     by = {e.key: e for e in r.entries}
     assert by["share_with_sponsors"].value == "not ticked" and by["newsletter"].value == "not ticked"
     assert site.hits("collector.test") == [] and not r.approvable  # the total still blocks
+
+
+def test_rule_reads_the_wording_not_the_required_mark(site, keys):
+    priv, pub = keys
+    form = run.learn("apply", f"{FORM}/consent.html", sandbox=factory())
+    grant = token(priv, form_id="apply", facts=("full_name",), max_total=None, may_submit=True, consent="accept-terms")
+    seen = run.fill(form, {"full_name": "Ada Example"}, grant, pub, sandbox=factory()).receipt
+    by = {e.key: (e.value, e.status) for e in seen.entries}
+    assert by["tos"] == ("ticked", "policy")  # terms, though the form did not mark it required
+    assert by["partner_offers"] == ("not ticked", "policy")  # marketing, though the form demands it and pre-ticked it
+    assert by["remember"] == ("not ticked", "policy")  # optional
+    assert by["work_auth"] == ("not ticked", "yours")  # a statement of fact is never the rule's to make
+    blocks = sorted((f.kind, f.key) for f in seen.flags if f.blocking)
+    assert blocks == [("consent-required", "partner_offers"), ("consent-required", "work_auth")] and not seen.approvable
+    before = len(posts(site))
+    with pytest.raises(run.NotApproved, match="work_auth|authorized to work"):
+        run.submit(form, {"full_name": "Ada Example"}, grant, pub, run.Approval(seen.digest()), sandbox=factory())
+    assert len(posts(site)) == before and leftovers() == []

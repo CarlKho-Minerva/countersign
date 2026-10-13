@@ -22,8 +22,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 
 MAX_TOKEN_BYTES = 8192
 # How consent boxes are decided. "ask": the owner decides each one when approving.
-# "required-only": the owner's standing rule, tick what the form requires and untick the rest.
-CONSENT_POLICIES = ("ask", "required-only")
+# "accept-terms": the owner's standing rule (consent.py): accept terms, decline marketing and
+# anything optional, leave every other required statement to the owner.
+CONSENT_POLICIES = ("ask", "accept-terms")
 
 
 class GrantError(Exception):

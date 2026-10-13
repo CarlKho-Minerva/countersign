@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
+from . import consent
 from . import receipt as rc
 from .fingerprint import drift, fingerprint
 from .grant import Grant, check_scope, verify
@@ -116,12 +117,13 @@ def _fill_page(box: Sandbox, compiled: Compiled, intents: dict[str, rc.Intent], 
     if page["drift"]:
         return page  # a form that changed shape is reported, not filled
     was, want = {}, {}
-    if consent_policy == "required-only":
+    if consent_policy == "accept-terms":
         for f in page["fields"]:
-            if f["type"] == "checkbox" and f["visible"]:
-                was[f["key"]], want[f["key"]] = f["checked"], bool(f["required"])
-                if f["checked"] != f["required"]:
-                    box.call("set_consent", key=f["key"], checked=bool(f["required"]))
+            decision = consent.decide(f) if f["type"] == "checkbox" and f["visible"] else None
+            if decision is not None:
+                was[f["key"]], want[f["key"]] = f["checked"], decision
+                if f["checked"] != decision:
+                    box.call("set_consent", key=f["key"], checked=decision)
     for key, intent in intents.items():
         try:
             box.call("fill", key=key, value=intent.value)

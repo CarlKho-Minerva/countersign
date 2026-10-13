@@ -87,6 +87,6 @@ def test_total_over_limit():
 def test_consent_rule_round_trips_and_defaults_to_ask():
     priv, pub = new_keypair()
     assert verify(pub, issue(priv, _grant()), now=NOW).consent == "ask"
-    assert verify(pub, issue(priv, _grant(consent="required-only")), now=NOW).consent == "required-only"
+    assert verify(pub, issue(priv, _grant(consent="accept-terms")), now=NOW).consent == "accept-terms"
     with pytest.raises(GrantError, match="unknown consent policy"):
         verify(pub, issue(priv, _grant(consent="tick-everything")), now=NOW)

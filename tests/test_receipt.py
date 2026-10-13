@@ -121,11 +121,11 @@ def test_standing_rule_decides_consent_and_says_so():
     ]
     r = receipt(after, consent={"terms": True, "share_with_sponsors": False, "newsletter": False},
                 consent_was={"terms": False, "share_with_sponsors": True, "newsletter": False},
-                consent_policy="required-only")
+                consent_policy="accept-terms")
     assert [(e.key, e.value, e.status, e.source) for e in r.entries] == [
-        ("terms", "ticked", "policy", "policy:required-only"),
-        ("share_with_sponsors", "not ticked", "policy", "policy:required-only"),
-        ("newsletter", "not ticked", "policy", "policy:required-only"),
+        ("terms", "ticked", "policy", "policy:accept-terms"),
+        ("share_with_sponsors", "not ticked", "policy", "policy:accept-terms"),
+        ("newsletter", "not ticked", "policy", "policy:accept-terms"),
     ]
     assert kinds(r) == ["consent-accepted", "consent-declined"] and r.approvable
 
@@ -143,4 +143,11 @@ def test_required_box_left_to_the_owner_blocks_until_decided():
 def test_ticked_box_nobody_can_see_blocks_whatever_the_rule():
     hidden = field("sell_my_data", type="checkbox", checked=True, visible=False)
     assert kinds(receipt([hidden])) == ["hidden-consent"]
-    assert not receipt([hidden], consent={}, consent_policy="required-only").approvable
+    assert not receipt([hidden], consent={}, consent_policy="accept-terms").approvable
+
+
+def test_marketing_the_form_demands_is_declined_and_blocks():
+    after = [field("sponsor_share", type="checkbox", required=True, label="Share my address with sponsors")]
+    r = receipt(after, consent={"sponsor_share": False}, consent_was={"sponsor_share": True}, consent_policy="accept-terms")
+    assert r.entries[0].value == "not ticked"
+    assert kinds(r) == ["consent-declined", "consent-required"] and not r.approvable

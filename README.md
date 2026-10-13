@@ -5,8 +5,8 @@ Forms your agents can fill, in a sandbox, with a receipt you sign.
 An agent learns a web form once and compiles it into a typed tool. Later calls, from a
 person or from another agent, run in a fresh sandbox under a signed grant that says
 who is calling, which origins the sandbox may reach, which facts it may disclose, and
-how consent boxes are decided (your standing rule: tick what the form requires,
-untick the rest).
+how consent boxes are decided (your standing rule: accept terms, decline marketing
+and anything optional).
 The run stops before Submit and returns a receipt: every field with its value, where
 the value came from, and whether it is known or a guess, plus what the page tried that
 the sandbox refused. You approve the receipt, and only then does a second sandbox
@@ -28,6 +28,7 @@ screenshots) and the web app are built during the event, on Vultr.
 | Sandbox lifecycle: start, caps, kill, destroy, reap | `countersign/sandbox.py` |
 | The runner inside the sandbox: a fixed set of verbs, no shell | `countersign/runner/` |
 | Form fingerprint and drift check | `countersign/fingerprint.py` |
+| Consent rule | `countersign/consent.py` |
 | Receipt | `countersign/receipt.py` |
 | Learn, fill, countersigned submit | `countersign/run.py` |
 
