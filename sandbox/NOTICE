@@ -1,0 +1,9 @@
+seccomp_chromium.json is Playwright's published profile for running Chromium's own
+sandbox as a non-root user in Docker (Docker's default profile plus clone, setns and
+unshare). Source: github.com/microsoft/playwright, utils/docker/seccomp_profile.json,
+Apache License 2.0, Copyright (c) Microsoft Corporation.
+
+One change here: chroot is added to that same rule. The box runs with every
+capability dropped, and Docker then leaves chroot out of the profile, which makes
+Chromium's sandbox abort at start. The kernel still refuses chroot to any process
+that lacks CAP_SYS_CHROOT in its own user namespace.

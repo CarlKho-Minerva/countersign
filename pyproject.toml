@@ -1,0 +1,18 @@
+[project]
+name = "countersign"
+version = "0.1.0"
+description = "Forms your agents can fill, in a sandbox, with a receipt you sign."
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "cryptography>=45",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = ["docker: needs a running Docker engine (real sandbox)"]

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Conference registration</title>
+<style>body{font:16px system-ui;max-width:40rem;margin:2rem auto}label{display:block;margin:.8rem 0}</style></head>
+<body><h1>Conference registration</h1>
+<form method="post" action="/submit">
+<label>Full name <input name="full_name" required></label>
+<label>Phone <input name="phone" type="tel" required></label>
+<label>Job title <input name="job_title" value="Student"></label>
+<label>Country <select name="country" required><option value="">Choose</option><option value="US">United States</option><option value="PH">Philippines</option><option value="JP">Japan</option></select></label>
+<fieldset><legend>Pass</legend>
+<label><input type="radio" name="pass" value="all-access"> All-access</label>
+<label><input type="radio" name="pass" value="main-only" checked> Main conference only</label></fieldset>
+<label><input type="checkbox" name="newsletter"> Send me the newsletter</label>
+<label><input type="checkbox" name="share_with_sponsors" checked> Share my address with event sponsors</label>
+<p>Order Total: $0.00</p>
+<button type="submit" name="register">Submit registration</button>
+</form>
+</body></html>

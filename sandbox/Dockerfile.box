@@ -1,0 +1,13 @@
+# The sandbox: headless Chromium plus the runner, nothing else. Built once, started
+# fresh per run.
+FROM python:3.13-slim
+ARG PLAYWRIGHT_VERSION=1.63.0
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN pip install --no-cache-dir "playwright==${PLAYWRIGHT_VERSION}" \
+ && playwright install --with-deps --only-shell chromium \
+ && rm -rf /var/lib/apt/lists/* /root/.cache \
+ && useradd --create-home --uid 1001 pwuser
+COPY countersign/runner/runner.py countersign/runner/read_form.js /app/
+USER pwuser
+ENV HOME=/tmp/home PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+ENTRYPOINT ["python3", "/app/runner.py"]
