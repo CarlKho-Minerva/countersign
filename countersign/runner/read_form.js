@@ -15,9 +15,23 @@
     return true;
   };
 
+  const clean = (t) => (t || '').trim().replace(/\s+/g, ' ').slice(0, 200);
+  // A label's own words: not the text of a control inside it (a select's options), and not
+  // text the label hides from a person.
+  const ownWords = (label) => {
+    const c = label.cloneNode(true);
+    for (const n of c.querySelectorAll('input, select, textarea, button, option, datalist, script, style, [hidden], [aria-hidden="true"]')) n.remove();
+    for (const n of c.querySelectorAll('[style]')) if (/display\s*:\s*none|visibility\s*:\s*hidden/i.test(n.getAttribute('style'))) n.remove();
+    return c.textContent;
+  };
   const labelOf = (el) => {
-    const own = el.labels && el.labels.length ? el.labels[0].innerText : '';
-    return (own || el.getAttribute('aria-label') || el.placeholder || '').trim().replace(/\s+/g, ' ').slice(0, 200);
+    const own = el.labels && el.labels.length ? ownWords(el.labels[0]) : '';
+    return clean(own || el.getAttribute('aria-label') || el.placeholder || '');
+  };
+  // A radio group is named by its fieldset's legend; each choice by its own label.
+  const groupLabel = (el) => {
+    const fs = el.closest('fieldset'), legend = fs && fs.querySelector('legend');
+    return clean(legend ? legend.innerText : '') || labelOf(el);
   };
 
   const fields = [], radios = new Map();
@@ -33,10 +47,11 @@
     if (type === 'radio') {
       let g = radios.get(key);
       if (!g) {
-        g = { key, by: 'name', tag, type, label: labelOf(el), required: false, options: [], value: '', checked: false, visible: false, autocomplete: '' };
+        g = { key, by: 'name', tag, type, label: groupLabel(el), required: false, options: [], option_labels: [], value: '', checked: false, visible: false, autocomplete: '' };
         radios.set(key, g); fields.push(g);
       }
-      g.options.push(el.value); g.required = g.required || el.required; g.visible = g.visible || shown(el);
+      if (g.options.length < MAX_OPTIONS) { g.options.push(el.value.slice(0, 200)); g.option_labels.push(labelOf(el)); }
+      g.required = g.required || el.required; g.visible = g.visible || shown(el);
       if (el.checked) { g.value = el.value; g.checked = true; }
       continue;
     }
@@ -45,6 +60,7 @@
       label: tag === 'button' || type === 'submit' ? (el.innerText || el.value || '').trim().slice(0, 200) : labelOf(el),
       required: !!el.required,
       options: tag === 'select' ? [...el.options].slice(0, MAX_OPTIONS).map(o => o.value.slice(0, 200)) : [],
+      option_labels: tag === 'select' ? [...el.options].slice(0, MAX_OPTIONS).map(o => clean(o.text)) : [],
       value: type === 'checkbox' || type === 'file' ? '' : (el.value || '').slice(0, MAX_VALUE),
       checked: type === 'checkbox' ? el.checked : false,
       visible: type !== 'hidden' && shown(el),

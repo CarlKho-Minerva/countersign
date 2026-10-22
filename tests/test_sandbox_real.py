@@ -15,10 +15,12 @@ import pytest
 from countersign import run
 from countersign.grant import Grant, issue, new_keypair
 from countersign.policy import EgressPolicy
-from countersign.sandbox import LABEL, Limits, Refused, Sandbox, SandboxKilled, ensure_egress_network, reap
+from countersign.sandbox import LABEL, Images, Limits, Refused, Sandbox, SandboxKilled, ensure_egress_network, reap
 
 REPO = Path(__file__).resolve().parent.parent
 FORM = "http://form.test"
+# Its own egress network, so a deployed stack's test site on cs-egress cannot answer for form.test.
+NET = "cs-egress-test"
 
 
 def docker(*args, check=True):
@@ -41,16 +43,16 @@ pytestmark = [pytest.mark.docker, pytest.mark.skipif(not _engine_up(), reason="n
 def site():
     for image in ("countersign-box", "countersign-proxy"):
         assert docker("images", "-q", image).strip(), f"image {image} missing: run sandbox/build.sh"
-    ensure_egress_network()
+    ensure_egress_network(NET)
     name = f"cs-fixture-{secrets.token_hex(4)}"
-    docker("run", "-d", "--name", name, "--network", "cs-egress", "--network-alias", "form.test",
+    docker("run", "-d", "--name", name, "--network", NET, "--network-alias", "form.test",
            "--network-alias", "collector.test", "-v", f"{REPO / 'fixtures'}:/srv:ro", "python:3.13-slim",
            "python3", "/srv/serve.py", "80")
     time.sleep(1.0)
 
     class Site:
         container = name
-        ip = docker("inspect", "-f", '{{(index .NetworkSettings.Networks "cs-egress").IPAddress}}', name).strip()
+        ip = docker("inspect", "-f", f'{{{{(index .NetworkSettings.Networks "{NET}").IPAddress}}}}', name).strip()
 
         @staticmethod
         def hits(host):
@@ -63,7 +65,8 @@ def site():
 
 def factory(wall=60, **limits):
     # The fixtures live on a private Docker network, so their names are let through by name.
-    return lambda p: Sandbox(replace(p, private_ok=frozenset(p.allow_hosts)), limits=Limits(wall_seconds=wall, **limits))
+    return lambda p: Sandbox(replace(p, private_ok=frozenset(p.allow_hosts)), limits=Limits(wall_seconds=wall, **limits),
+                             images=Images(egress_network=NET))
 
 
 def leftovers():
@@ -354,3 +357,76 @@ def test_rule_reads_the_wording_not_the_required_mark(site, keys):
     with pytest.raises(run.NotApproved, match="work_auth|authorized to work"):
         run.submit(form, {"full_name": "Ada Example"}, grant, pub, run.Approval(seen.digest()), sandbox=factory())
     assert len(posts(site)) == before and leftovers() == []
+
+
+# The model-driven layer against real containers, with a scripted model: learn a form
+# in steps, compile it to a typed tool, map facts with known-or-guess labels, fill with a
+# screenshot of each step, check them, countersign, submit.
+
+from countersign.mapper import map_facts  # noqa: E402
+from countersign.tool import compile_tool  # noqa: E402
+from countersign.witness import check_confirmation, check_fill  # noqa: E402
+
+from fakes import Script, fake_model  # noqa: E402
+
+WIZ_LEARN = {
+    "title": "Workshop registration", "purpose": "Registers one person for the workshop.",
+    "fields": [{"key": "organisation", "description": "Where the attendee works", "fact": "company"}],
+    "boxes": [{"key": "house_rules", "kind": "terms"}, {"key": "workshop_news", "kind": "marketing"}],
+}
+WIZ_MAP = {"values": [
+    {"key": "country", "value": "PH", "from": ["country"]},
+    {"key": "organisation", "value": "Example Labs", "from": ["role"], "why": "the company in her role"},
+    {"key": "session", "value": "morning", "from": ["session_pref"], "why": "she prefers mornings"},
+    {"key": "meal", "value": "vegetarian", "from": ["diet"]},
+]}
+PROFILE = {"full_name": "Ada Example", "email": "ada@example.org", "country": "Philippines", "role": "Founder, Example Labs",
+           "session_pref": "mornings", "diet": "Vegetarian", "passport_no": "X0000000"}
+
+
+def test_learning_walks_a_form_in_steps(site):
+    learned = run.learn_walk("ws", f"{FORM}/wizard.html", sandbox=factory())
+    c = learned.compiled
+    assert c.steps == ("next_1",) and len(learned.trail) == 2
+    assert all(png[:4] == b"\x89PNG" for _, png in learned.trail)
+    step = {f["key"]: f["step"] for f in c.fields}
+    assert step["full_name"] == 0 and step["session"] == 1 and step["register"] == 1
+    assert all(f["visible"] for f in c.fields if f["key"] in ("full_name", "session", "house_rules"))
+    by = {f["key"]: f for f in c.fields}
+    assert by["session"]["label"] == "Session" and by["meal"]["option_labels"][1] == "Vegetarian"
+    assert learned.hidden_text == []  # a step that is merely not shown yet is not hidden text
+    assert leftovers() == []
+
+
+def test_learn_map_fill_witness_countersign_submit(site, keys, tmp_path):
+    priv, pub = keys
+    model = fake_model(Script(learn=WIZ_LEARN, map=WIZ_MAP, witness={"fields": [{"key": "full_name", "agrees": True}]},
+                              confirm={"outcome": "accepted", "evidence": "Registration received"}), tmp_path)
+    tool = compile_tool(run.learn_walk("ws", f"{FORM}/wizard.html", sandbox=factory()), model=model)
+    assert set(tool.input_schema()["properties"]) == {"full_name", "email", "organisation", "country", "session", "meal"}
+    allowed = ("full_name", "email", "country", "role", "session_pref", "diet")
+    grant = token(priv, form_id="ws", facts=allowed, may_submit=True, consent="accept-terms")
+    mapping = map_facts(tool, PROFILE, allowed=allowed, model=model)
+    assert mapping.withheld == ["passport_no"]
+
+    seen = run.fill(tool.compiled, PROFILE, grant, pub, sandbox=factory(), intents=mapping.intents)
+    r = seen.receipt
+    by = {e.key: e for e in r.entries}
+    assert (by["full_name"].status, by["country"].value, by["country"].status) == ("known", "PH", "known")
+    assert (by["organisation"].value, by["organisation"].status) == ("Example Labs", "guess")
+    assert (by["session"].value, by["meal"].value, by["meal"].status) == ("morning", "vegetarian", "known")
+    assert (by["house_rules"].value, by["workshop_news"].value) == ("ticked", "not ticked")  # model read the rules box; rule declined the news
+    assert r.approvable and [c for c, _ in seen.trail] == ["step 1 filled", "step 2 filled"]
+    r.flags += check_fill(model, r, [png for _, png in seen.trail], [])
+    assert r.approvable
+
+    before = len(posts(site))
+    done = run.submit(tool.compiled, PROFILE, grant, pub, run.Approval(r.digest()), sandbox=factory(), intents=mapping.intents)
+    sent = posts(site)[before:]
+    assert len(sent) == 1 and done.receipt.submitted
+    body = sent[0]["body"]
+    for part in ("full_name=Ada+Example", "country=PH", "organisation=Example+Labs", "session=morning", "meal=vegetarian", "house_rules=on"):
+        assert part in body
+    assert "workshop_news" not in body and "X0000000" not in body
+    assert check_confirmation(model, done.confirmation_png, done.landed).detail.startswith("accepted")
+    assert leftovers() == []

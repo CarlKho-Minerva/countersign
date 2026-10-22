@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Workshop registration</title>
+<style>
+body{font:16px system-ui;max-width:40rem;margin:2rem auto;color:#1d1d1f}
+label{display:block;margin:.8rem 0}fieldset{border:1px solid #ccc;border-radius:6px;margin:1rem 0}
+.step[hidden]{display:none}.bar{color:#666;font-size:14px}button{font:inherit;padding:.4rem 1rem}
+</style></head>
+<body><h1>Agents in Production: workshop registration</h1>
+<form method="post" action="/submit">
+<section class="step" id="s1"><p class="bar">Step 1 of 2: about you</p>
+<label>Full name <input name="full_name" required autocomplete="name"></label>
+<label>Email <input name="email" type="email" required autocomplete="email"></label>
+<label>Organisation <input name="organisation"></label>
+<label>Country <select name="country" required><option value="">Choose</option><option value="US">United States</option><option value="PH">Philippines</option><option value="JP">Japan</option><option value="DE">Germany</option></select></label>
+<button type="button" name="next_1" onclick="go(2)">Next</button>
+</section>
+<section class="step" id="s2" hidden><p class="bar">Step 2 of 2: your seat</p>
+<fieldset><legend>Session</legend>
+<label><input type="radio" name="session" value="morning"> Morning (9:00 to 12:00)</label>
+<label><input type="radio" name="session" value="afternoon" checked> Afternoon (13:00 to 16:00)</label></fieldset>
+<label>Meal <select name="meal"><option value="none">No preference</option><option value="vegetarian">Vegetarian</option><option value="vegan">Vegan</option><option value="halal">Halal</option></select></label>
+<label><input type="checkbox" name="house_rules" required> Yes, I've read the house rules for attendees and I'm in</label>
+<label><input type="checkbox" name="workshop_news" checked> Send me news about future workshops</label>
+<p>Total due: $0.00</p>
+<button type="button" name="back" onclick="go(1)">Back</button>
+<button type="submit" name="register">Register</button>
+</section>
+</form>
+<script>
+  function go(n) {
+    document.getElementById('s1').hidden = n !== 1;
+    document.getElementById('s2').hidden = n !== 2;
+  }
+</script>
+</body></html>

@@ -28,10 +28,18 @@ class Intent:
 
     value: str
     source: str  # "fact:<key>" for a value the owner supplied, "guess:<reason>" otherwise
+    uses: tuple[str, ...] = ()  # every fact the value was taken or worked out from
 
     @property
     def known(self) -> bool:
         return self.source.startswith("fact:")
+
+    def facts_used(self) -> set[str]:
+        """What filling this field discloses, for the grant's scope check."""
+        used = set(self.uses)
+        if self.known:
+            used.add(self.source.split(":", 1)[1])
+        return used
 
 
 @dataclass
@@ -70,13 +78,14 @@ class Receipt:
     def digest(self) -> str:
         """Binds an approval to the state of the form: the submit replay must match it.
 
-        Blocked requests are left out. They are evidence about the sandbox, their number
-        depends on timing, and they do not change what would be submitted.
+        Left out: blocked requests (evidence about the sandbox; their number depends on
+        timing) and the model's notes (a witness, not part of what would be submitted, and
+        not reproducible call to call). Neither changes what would be submitted.
         """
         body = asdict(self)
         body.pop("run_id")
         body.pop("submitted")
-        body["flags"] = [f for f in body["flags"] if f["kind"] != "egress-blocked"]
+        body["flags"] = [f for f in body["flags"] if f["kind"] != "egress-blocked" and not f["kind"].startswith("model-")]
         canon = json.dumps(body, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canon.encode()).hexdigest()
 

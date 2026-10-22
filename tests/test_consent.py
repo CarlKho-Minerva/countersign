@@ -47,3 +47,18 @@ def test_a_required_statement_of_fact_is_left_to_the_owner(label):
 @pytest.mark.parametrize("label", ["Remember my details", "Add event insurance", "I am over 18", ""])
 def test_anything_optional_is_declined(label):
     assert decide(box(label)) is False
+
+
+@pytest.mark.parametrize("label,model_kind,want", [
+    ("Yes, I've read the house rules for attendees and I'm in", "terms", "terms"),  # names its rules
+    ("Yes, I'm in", "terms", "other"),  # names nothing: the model's reading is not enough
+    ("Send me news about future workshops", "terms", "marketing"),
+    ("I certify that I am legally authorized to work in the United States", "terms", "owner"),
+    ("I agree to the terms and conditions", "marketing", "marketing"),  # the model can make it more careful
+    ("I agree to the terms and conditions", "owner", "owner"),
+    ("Remember me", "optional", "optional"),
+])
+def test_the_models_reading_only_ever_makes_the_rule_more_careful(label, model_kind, want):
+    from countersign.consent import kind
+    assert kind(label, "c1", model_kind) == want
+
