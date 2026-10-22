@@ -167,3 +167,15 @@ def test_one_address_cannot_queue_unlimited_runs(tmp_path):
     c = TestClient(create_app(svc, limit=RateLimit(2, 600)))
     codes = [c.post("/api/learn", json={"url": "https://example.com/x"}).status_code for _ in range(3)]
     assert codes == [403, 403, 429]  # the first two reach the demo check; the third is never let in
+
+
+def test_the_spend_ledger_lives_with_the_data_so_the_cap_survives_a_redeploy(tmp_path, monkeypatch):
+    monkeypatch.setenv("CS_DATA", str(tmp_path / "data"))
+    monkeypatch.setenv("CS_MODEL_PROVIDER", "openai")
+    monkeypatch.setenv("CS_MODEL_BASE_URL", "https://model.invalid/v1")
+    monkeypatch.setenv("CS_MODEL_API_KEY", "k")
+    monkeypatch.setenv("CS_MODEL", "m")
+    monkeypatch.setenv("CS_REAP", "0")
+    monkeypatch.delenv("CS_LEDGER", raising=False)
+    app = create_app()
+    assert app.state.service.model.ledger == tmp_path / "data" / "spend.jsonl"

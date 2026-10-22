@@ -72,10 +72,10 @@ It starts the test site itself, runs nine scenes, checks every claim it prints, 
 ## Tests
 
 ```sh
-uv run pytest      # 151 tests; the 19 in tests/test_sandbox_real.py need a Linux Docker engine
+uv run pytest      # 152 tests; the 19 in tests/test_sandbox_real.py need a Linux Docker engine
 ```
 
-Last full run: 151 passed (132 without containers, 19 against real containers on a Linux
+Last full run: 152 passed (133 without containers, 19 against real containers on a Linux
 Docker engine). The end-to-end demo with a real model: 27 of 27 checks.
 
 The model-driven code is tested with a scripted model endpoint (`tests/fakes.py`), so the

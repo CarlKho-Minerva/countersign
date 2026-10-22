@@ -85,6 +85,8 @@ def create_app(service: Service | None = None, *, password: str | None = None,
         password = env.get("CS_OWNER_PASSWORD") or None
         if not demo and not password:
             raise SystemExit("CS_DEMO=0 needs CS_OWNER_PASSWORD: a real deployment does not run without an owner password")
+        # The spend ledger lives with the app's data, so the cap survives a redeploy.
+        env = {**env, "CS_LEDGER": env.get("CS_LEDGER") or str(Path(env.get("CS_DATA", "data")) / "spend.jsonl")}
         try:
             model = Model.from_env(env)
         except ModelError as exc:

@@ -65,7 +65,7 @@ repository are the real ones. The recorded demo ran on a local Docker host with 
 OpenAI as the development model; the submitted deployment uses a Vultr VM and Vultr
 Serverless Inference.
 
-151 tests pass, 19 of them against real containers, and the end-to-end demo checks 27
+152 tests pass, 19 of them against real containers, and the end-to-end demo checks 27
 claims against the bundled test forms on every run.
 
 ## Tracks and tags
