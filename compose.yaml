@@ -1,0 +1,46 @@
+# Countersign on one host: the app, the bundled test site, and Caddy in front.
+# Start it with deploy/up.sh, which builds the two sandbox images first.
+name: countersign
+services:
+  app:
+    build: .
+    image: countersign-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CS_DATA: /data
+      CS_FIXTURE_CONTAINER: countersign-fixtures
+    volumes:
+      # The app starts sandboxes through the host's engine. Whoever controls the app
+      # controls Docker on this host: keep the app's owner password strong.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - cs-data:/data
+  fixtures:
+    # The demo's test forms, on the sandboxes' egress network only, under made-up names.
+    image: python:3.13-slim
+    container_name: countersign-fixtures
+    restart: unless-stopped
+    command: ["python3", "/srv/serve.py", "80"]
+    volumes:
+      - ./fixtures:/srv:ro
+    networks:
+      cs-egress:
+        aliases: [form.test, collector.test]
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "${CS_HTTP_PORT:-80}:80"
+      - "${CS_HTTPS_PORT:-443}:443"
+    environment:
+      CS_SITE: ${CS_SITE:-:80}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+networks:
+  cs-egress:
+    external: true
+volumes:
+  cs-data: {}
+  caddy-data: {}

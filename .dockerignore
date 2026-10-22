@@ -4,3 +4,6 @@ runs
 keys
 tests
 fixtures
+.env
+data
+dist

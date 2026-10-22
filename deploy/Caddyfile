@@ -1,0 +1,5 @@
+# CS_SITE is a host name (HTTPS is automatic, e.g. 203.0.113.5.sslip.io) or :80 for plain HTTP.
+{$CS_SITE::80} {
+	encode gzip
+	reverse_proxy app:8000
+}
