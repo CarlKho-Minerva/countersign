@@ -78,21 +78,52 @@ other agents    ──►  (FastAPI, web app, MCP,           (all model calls, k
 - **Resource limits:** memory, CPU, process count and wall time on every run.
 - **Lifecycle:** container, proxy and network are removed after each run, pass or fail.
 
-## What is built when
+## What was built when
 
 lablab's own FAQ says pre-existing code is allowed and that most events need only the
 core AI functionality to be built in the event window. The event's specific rules add
-original work, open source and MIT. So:
+original work, open source and MIT. This entry does not follow the usual split, and says
+so plainly:
 
-- **Before kickoff (non-AI scaffolding):** sandbox lifecycle and caps, egress proxy,
-  grants, fingerprint and drift, receipt format, the hostile form, tests against a
-  real local Docker sandbox.
-- **From kickoff, Nov 3 (the AI core, on Vultr):** learning a form with the model,
-  mapping facts to fields with known-or-guess labels, vision check of each
-  screenshot, injection flagging, MCP surface, web app polish, deploy, video, slides.
+- **2026-10-13, before kickoff (no model):** sandbox lifecycle and caps, egress proxy,
+  grants, fingerprint and drift, receipt format, the consent rule, the hostile form, and
+  tests against a real local Docker sandbox.
+- **2026-10-21, also before kickoff:** the AI core and everything around it: learning a
+  form in steps and compiling it into a typed tool, mapping facts to fields with
+  known-or-guess labels, the model's check of each screenshot and of the page after
+  Submit, page text aimed at an AI flagged on the receipt, the MCP surface and agent API,
+  the web app, the end-to-end demo, the one-command deploy, the video and the slides.
 
-The repository goes public at kickoff with its real commit dates, and the README says
-which parts predate it.
+The commit dates are real. The repository stays private until Carl decides to open it.
+
+## As built (2026-10-21)
+
+- **Steps.** Learning presses buttons labelled Next or Continue (never a submit
+  control) and records at which step each field first shows. A fill walks the same
+  steps, fills each step's fields, screenshots it, and reads the whole form back at
+  the end. Text that is merely on a later step is not "hidden text".
+- **The typed tool** is a JSON Schema built from the page (types, choices, required)
+  with the model's descriptions. It is what `tools/list` returns over MCP.
+- **The model is a reader and a witness, never a gate.** Its consent reading can only
+  make the rule more careful, except that it may call an oddly worded rules box terms
+  when the label names terms, rules or a policy. Its findings on a receipt are "model-"
+  flags: they never block, never approve, and are left out of the digest an approval
+  signs, because the model is not reproducible call to call and a page can write text
+  aimed at it.
+- **Data minimisation.** The model sees only the facts a grant allows. A fact outside the
+  grant never leaves the control plane.
+- **A provider's own filter is evidence.** When Azure's prompt shield refused to read the
+  hostile page's hidden text, the witness recorded that as a prompt attack on the
+  receipt and checked the screenshots without the page's text.
+- **Spend.** Every model call is metered into a ledger and stops, loudly, at a cap. A
+  provider that reports no usage is metered at the pre-call estimate.
+- **Public demo.** Demo mode learns only the bundled test forms, rate-limits each
+  address, queues at most eight runs, and prunes old runs.
+
+Known limits: a form whose Next button posts to its server sends each step's data on
+Next; a box whose wording names a policy and also hides a statement the patterns do not
+know could still be read as terms by the model (the owner still approves the receipt,
+which lists every box and what decided it); the app controls the host's Docker engine.
 
 ## Not in scope
 
@@ -100,7 +131,6 @@ Login-walled forms, CAPTCHAs, payments, and anything that needs a stored credent
 Passwords and payment fields are never filled; the receipt lists them as yours. A
 caller can never set a consent box: only the owner's rule or the owner's approval can.
 
-Known limit of the consent rule before kickoff: wording is matched with narrow
-patterns (`countersign/consent.py`), so an oddly worded terms box is left unticked
-and, if required, handed to you. From kickoff the model reads the label; the three
-outcomes stay the same.
+The consent rule matches wording with narrow patterns (`countersign/consent.py`). Since
+2026-10-21 the model also reads each label when a form is learned; the three outcomes
+stay the same, and the patterns run last, on the live label.
