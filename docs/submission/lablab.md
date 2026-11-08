@@ -53,17 +53,22 @@ nothing; the instructions are quoted on the receipt, not followed; and the $1,27
 blocks approval in a way no approval can lift. An agent whose grant names a different
 form is refused before any container starts.
 
-Built on Vultr: the control plane (FastAPI web app, grants, receipts, MCP) runs on a
-Vultr VM, every model call goes through Vultr Serverless Inference, and every run gets
-its own container on that VM, destroyed afterwards. Deploying it is one command.
+Built on Vultr: every model call goes through Vultr Serverless Inference, the
+`countersign` endpoint on this account, default model `qwen3.8-27b`, which accepts
+images and so does the screenshot checking as well as the field mapping. The control
+plane (FastAPI web app, grants, receipts, MCP) and the per-run containers are written
+for a Vultr VM and deploy there in one command, `deploy/vultr.sh root@<ip>`.
 
 When it was built: the containment layer (grants, sandbox, proxy, drift check, receipt)
 was written on 2026-10-13 with no model in it. The model-driven parts (learning a form,
 mapping facts, checking screenshots), the web app, the MCP endpoint, the video and the
 slides were built on 2026-10-21, before the November 3 kickoff. The commit dates in the
 repository are the real ones. The recorded demo ran on a local Docker host with Azure
-OpenAI as the development model; the submitted deployment uses a Vultr VM and Vultr
-Serverless Inference.
+OpenAI as the development model. The submitted build runs on Vultr Serverless Inference.
+There is no live URL to click: Vultr refused the hackathon gift code on this account
+("only valid for newly funded accounts"), so no VM was created, and the one-command
+deploy is what a judge would run. Everything else here is real and reproducible from the
+repository.
 
 152 tests pass, 19 of them against real containers, and the end-to-end demo checks 27
 claims against the bundled test forms on every run.
@@ -77,9 +82,9 @@ claims against the bundled test forms on every run.
 
 ## Links (fill in after the Vultr deploy)
 
-- GitHub repository: https://github.com/CarlKho-Minerva/countersign (private until Carl opens it; lablab requires it public)
-- Demo application platform: Vultr (VM, Docker)
-- Application URL: https://<vm-ip>.sslip.io, printed by `deploy/vultr.sh`
+- GitHub repository: https://github.com/CarlKho-Minerva/countersign (public)
+- Demo application platform: Vultr Serverless Inference; control plane via `deploy/vultr.sh` on a Vultr VM
+- Application URL: none hosted (see above); `deploy/vultr.sh root@<ip>` brings it up at `https://<vm-ip>.sslip.io`
 - Video: `countersign-demo.mp4` (3 min 39 s, captions, no voice)
 - Slides: `docs/submission/countersign-deck.pdf`
 - Cover image: `docs/submission/countersign-cover.png` (1600 x 900)
